@@ -315,5 +315,5 @@ class FrozenDict(collections.Mapping):
         if self._hash is None:
             self._hash = 0
             for pair in self.__iter__():
-                self._hash ^= hash(pair)
+                self._hash ^= hash(self._d[pair])
         return self._hash

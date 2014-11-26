@@ -2256,7 +2256,7 @@ class SubscribeMixin(AuthenticatedReddit):
             added to the Multireddit upon creation
         :returns: The json response from the server.
         """
-        subreddits = [FrozenDict(name=six.text_type(sub)) for sub in subreddits]
+        #subreddits = [FrozenDict(name=six.text_type(sub)) for sub in subreddits]
         subreddits = tuple(subreddits)
         path = "/user/%s/m/%s" % (self.user.name, name)
         data = {
