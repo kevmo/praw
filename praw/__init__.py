@@ -33,7 +33,7 @@ import six
 import sys
 from praw import decorators, errors
 from praw.handlers import DefaultHandler
-from praw.helpers import normalize_url
+from praw.helpers import normalize_url, FrozenDict
 from praw.internal import (_prepare_request, _raise_redirect_exceptions,
                            _raise_response_exceptions, _to_reddit_list)
 from praw.settings import CONFIG
@@ -341,7 +341,8 @@ class BaseReddit(object):
             self.update_checked = True
 
     def _request(self, url, params=None, data=None, files=None, auth=None,
-                 timeout=None, raw_response=False, retry_on_error=True):
+                 timeout=None, raw_response=False, retry_on_error=True,
+                 delete=False):
         """Given a page url and a dict of params, open and return the page.
 
         :param url: the url to grab content from.
@@ -355,6 +356,9 @@ class BaseReddit(object):
             response body
         :param retry_on_error: if True retry the request, if it fails, for up
             to 3 attempts
+        :param delete: The HTTP request will explicitly issue a DELETE.
+            Used for functions where multiple request types are made through
+            the same endpoint and deletions must be distinguished.
         :returns: either the response body or the response object
 
         """
@@ -372,7 +376,8 @@ class BaseReddit(object):
                 url = _raise_redirect_exceptions(response)
             return response
 
-        request = _prepare_request(self, url, params, data, auth, files)
+        request = _prepare_request(self, url, params, data, auth, files,
+            delete=delete)
         timeout = self.config.timeout if timeout is None else timeout
 
         # Prepare extra arguments
@@ -539,7 +544,7 @@ class BaseReddit(object):
 
     @decorators.raise_api_exceptions
     def request_json(self, url, params=None, data=None, as_objects=True,
-                     retry_on_error=True):
+                     retry_on_error=True, delete=False):
         """Get the JSON processed from a page.
 
         :param url: the url to grab content from.
@@ -548,12 +553,15 @@ class BaseReddit(object):
         :param as_objects: if True return reddit objects else raw json dict.
         :param retry_on_error: if True retry the request, if it fails, for up
             to 3 attempts
+        :param delete: The HTTP request will explicitly issue a DELETE.
+            Used for functions where multiple request types are made through
+            the same endpoint and deletions must be distinguished.
         :returns: JSON processed page
 
         """
         if not url.endswith('.json'):
             url += '.json'
-        response = self._request(url, params, data,
+        response = self._request(url, params, data, delete=delete,
                                  retry_on_error=retry_on_error)
         hook = self._json_reddit_objecter if as_objects else None
         # Request url just needs to be available for the objecter to use
@@ -2239,6 +2247,40 @@ class SubscribeMixin(AuthenticatedReddit):
     """
 
     @decorators.restrict_access(scope='subscribe')
+    def create_multireddit(self, name, visibility='private', subreddits=[]):
+        """Create a new multireddit.
+        :param name: The name of the multireddit to create
+        :param visibility: The visibility of the multireddit. 
+            Either "public" or "private"
+        :param subreddits: A list of subreddit names or objects which will be
+            added to the Multireddit upon creation
+        :returns: The json response from the server.
+        """
+        subreddits = [FrozenDict(name=six.text_type(sub)) for sub in subreddits]
+        subreddits = tuple(subreddits)
+        path = "/user/%s/m/%s" % (self.user.name, name)
+        data = {
+                'path': path,
+                'visibility':visibility,
+                'subreddits':subreddits
+                }
+        print(data)
+        return self.request_json(self.config['multireddit_about']%(
+            self.user.name, name), data=data)
+
+    @decorators.restrict_access(scope='subscribe')
+    def delete_multireddit(self, name):
+        """Delete a multireddit. Can only be performed by the
+            multireddit's owner
+        :param name: The name of the multireddit to be deleted
+        :returns: the json response from the server.
+        """
+        data = {'multipath': name}
+        print(data)
+        return self.request_json(self.config['multireddit_about']%(
+            self.user.name, name), data=data, delete=True)
+
+    @decorators.restrict_access(scope='subscribe')
     def subscribe(self, subreddit, unsubscribe=False):
         """Subscribe to the given subreddit.
 
@@ -2249,7 +2291,7 @@ class SubscribeMixin(AuthenticatedReddit):
         """
         data = {'action': 'unsub' if unsubscribe else 'sub',
                 'sr_name': six.text_type(subreddit)}
-        response = self.request_json(self.config['subscribe'], data=data)
+        response = self._request(self.config['subscribe'], data=data)
         self.evict(self.config['my_subreddits'])
         return response
 

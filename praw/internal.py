@@ -101,7 +101,7 @@ def _modify_relationship(relationship, unlink=False, is_sub=False):
     return do_relationship
 
 
-def _prepare_request(reddit_session, url, params, data, auth, files):
+def _prepare_request(reddit_session, url, params, data, auth, files, delete=False):
     """Return a requests Request object that can be "prepared"."""
     # Requests using OAuth for authorization must switch to using the oauth
     # domain.
@@ -128,9 +128,9 @@ def _prepare_request(reddit_session, url, params, data, auth, files):
         if auth:
             sys.stderr.write('auth: %s\n' % str(auth))
     # Prepare request
-    request = Request(method='GET', url=url, headers=headers, params=params,
-                      auth=auth, cookies=reddit_session.http.cookies)
-    if not data and not files:  # GET request
+    request = Request(method='GET', url=url, headers=headers,
+        params=params, auth=auth, cookies=reddit_session.http.cookies)
+    if not data and not files and not delete:  # GET request
         return request
     # Most POST requests require adding `api_type` and `uh` to the data.
     if data is True:
@@ -139,7 +139,10 @@ def _prepare_request(reddit_session, url, params, data, auth, files):
         data.setdefault('api_type', 'json')
         if reddit_session.modhash:
             data.setdefault('uh', reddit_session.modhash)
-    request.method = 'POST'
+    if delete:
+        request.method = 'DELETE'
+    else:
+        request.method = 'POST'
     request.data = data
     request.files = files
     return request
@@ -151,7 +154,7 @@ def _raise_redirect_exceptions(response):
     Raise exceptions if appropriate.
 
     """
-    if response.status_code not in [301, 302, 307]:
+    if response.status_code != 302:
         return None
     new_url = urljoin(response.url, response.headers['location'])
     if 'reddits/search?q=' in new_url:  # Handle non-existent subreddit
