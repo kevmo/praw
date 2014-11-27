@@ -33,7 +33,7 @@ import six
 import sys
 from praw import decorators, errors
 from praw.handlers import DefaultHandler
-from praw.helpers import normalize_url, FrozenDict
+from praw.helpers import normalize_url
 from praw.internal import (_prepare_request, _raise_redirect_exceptions,
                            _raise_response_exceptions, _to_reddit_list)
 from praw.settings import CONFIG
@@ -131,9 +131,9 @@ class Config(object):  # pylint: disable-msg=R0903, R0924
                  'new':                 'new/',
                  'new_subreddits':      'subreddits/new/',
                  'marknsfw':            'api/marknsfw/',
-                 'multireddit':         'user/%s/m/%s/',
-                 'multireddit_mine':    'me/m/%s/',
-                 'multireddit_about':   'api/multi/user/%s/m/%s/',
+                 'multireddit':         'user/{username}/m/{multi}',
+                 'multireddit_mine':    'me/m/{multi}/',
+                 'multireddit_about':   'api/multi/user/{username}/m/{multi}',
                  'popular_subreddits':  'subreddits/popular/',
                  'read_message':        'api/read_message/',
                  'reddit_url':          '/',
@@ -2247,26 +2247,26 @@ class SubscribeMixin(AuthenticatedReddit):
     """
 
     @decorators.restrict_access(scope='subscribe')
-    def create_multireddit(self, name, visibility='private', subreddits=[]):
+    def create_multireddit(self, name, subreddits, visibility='private'):
         """Create a new multireddit.
+
         :param name: The name of the multireddit to create
-        :param visibility: The visibility of the multireddit. 
-            Either "public" or "private"
         :param subreddits: A list of subreddit names or objects which will be
             added to the Multireddit upon creation
+        :param visibility: The visibility of the multireddit. Either "public"
+            or "private"
         :returns: The json response from the server.
+
         """
-        #subreddits = [FrozenDict(name=six.text_type(sub)) for sub in subreddits]
-        subreddits = tuple(subreddits)
-        path = "/user/%s/m/%s" % (self.user.name, name)
-        data = {
-                'path': path,
-                'visibility':visibility,
-                'subreddits':subreddits
-                }
-        print(data)
-        return self.request_json(self.config['multireddit_about']%(
-            self.user.name, name), data=data)
+        fkwargs = {'username': self.user.name, 'multi': name}
+        json_data = json.dumps({
+            'path': '/' + (self.config.API_PATHS['multireddit']
+                           .format(**fkwargs)),
+            'subreddits': [{'name': six.text_type(x)} for x in subreddits],
+            'visibility': visibility})
+        return self.request_json(self.config['multireddit_about']
+                                 .format(**fkwargs),
+                                 data={'model': json_data})
 
     @decorators.restrict_access(scope='subscribe')
     def delete_multireddit(self, name):

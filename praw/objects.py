@@ -1334,8 +1334,7 @@ class Subreddit(Messageable, Refreshable):
         self._url = reddit_session.config['subreddit'] % subreddit_name
         # '' is the hot listing
         listings = ['new/', '', 'top/', 'controversial/', 'rising/']
-        base = (reddit_session.config['subreddit'] % self.display_name)
-        self._listing_urls = [base + x + '.json' for x in listings]
+        self._listing_urls = [self._url + x + '.json' for x in listings]
 
     def __repr__(self):
         """Return a code representation of the Subreddit."""
@@ -1397,19 +1396,17 @@ class Multireddit(Refreshable):
         else:
             redditor = six.text_type(redditor)
 
-        info_url = reddit_session.config['multireddit_about'] % (redditor,
-                                                                 multi)
+        info_url = reddit_session.config['multireddit_about'].format(
+            username=redditor, multi=multi)
         super(Multireddit, self).__init__(reddit_session, json_dict, fetch,
                                           info_url)
         self._name = multi
         self.author = redditor
-        self._url = reddit_session.config['multireddit'] % (self.author,
-                                                            self._name)
+        self._url = reddit_session.config['multireddit'].format(
+            username=redditor, multi=multi)
 
         listings = ['new/', '', 'top/', 'controversial/', 'rising/']
-        base = (reddit_session.config['multireddit'] % (self.author,
-                                                        self._name))
-        self._listing_urls = [base + x + '.json' for x in listings]
+        self._listing_urls = [self._url + x + '.json' for x in listings]
         self.subreddits = [
             Subreddit(reddit_session, x['name']) for x in self.subreddits]
 
